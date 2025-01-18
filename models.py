@@ -95,31 +95,24 @@ class TransformerCrossAttention(Layer):
         )
         return config
 
+
 def model1(input_shape, n_layers, embed_dim, n_heads, ff_dim):
 
-    inputs = layers.Input(shape=input_shape)    # -> (B, T, F)
-
+    inputs = layers.Input(shape=input_shape) # -> (B, T, F)    
     _, T, F = inputs.shape
-
-    # input projection
-    x = layers.Dense(embed_dim)(inputs) # -> (B, T, embed_dim)      
-
-    # positional embeddings
+        
+    x = layers.Dense(embed_dim)(inputs)  # -> (B, T, embed_dim)      
+    
     embed_x = layers.Embedding(T, embed_dim)(ops.arange(T)) # (T, embed_dim) 
     x = x + embed_x
                 
-    # decoder stack
     for _ in range(n_layers): 
         x = TransformerSelfAttention(embed_dim, n_heads, ff_dim)(x)
-                        
-    # linear head
-    x = layers.Dense(F)(x)  # (B, T, embed_dim) -> (B, T, F)
 
-    # ouput projection
-    x = layers.Flatten()(x) # (B, T*F)
-    outputs = layers.Dense(F)(x) # (B, F)
-        
+    outputs = layers.Dense(F)(x)    # (B, T, embed_dim) -> (B, T, F)
+                
     return Model(inputs, outputs)
+
 
 def model2(input_shape, n_layers, embed_dim, n_heads, ff_dim):
 
