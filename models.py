@@ -101,15 +101,20 @@ def model1(input_shape, n_layers, embed_dim, n_heads, ff_dim):
     inputs = layers.Input(shape=input_shape) # -> (B, T, F)    
     _, T, F = inputs.shape
         
-    x = layers.Dense(embed_dim)(inputs)  # -> (B, T, embed_dim)      
+    x = layers.Dense(embed_dim)(inputs) # -> (B, T, embed_dim)      
     
-    embed_x = layers.Embedding(T, embed_dim)(ops.arange(T)) # (T, embed_dim) 
-    x = x + embed_x
+    embed_x = layers.Embedding(T, embed_dim)(ops.arange(T)) # (T, embed_dim)
+    x = x + embed_x                 # (B, T, embed,dim)
                 
     for _ in range(n_layers): 
         x = TransformerSelfAttention(embed_dim, n_heads, ff_dim)(x)
-
-    outputs = layers.Dense(F)(x)    # (B, T, embed_dim) -> (B, T, F)
+    
+    x = layers.Dropout(0.2)(x)    
+    
+    x = layers.Flatten()(x) # (B, T, embed_dim) -> #(B, T*embed_dim)
+    
+    outputs = layers.Dense(F)(x)    # (B, T*embed_dim) -> (B, F)
+    #outputs = layers.Dense(F)(x)    # (B, T, embed_dim) -> (B, T, F)
                 
     return Model(inputs, outputs)
 
@@ -128,8 +133,8 @@ def model2(input_shape, n_layers, embed_dim, n_heads, ff_dim):
     # positional embeddings
     embed_x = layers.Embedding(T, embed_dim)(ops.arange(T)) # (T, embed_dim) 
     embed_y = layers.Embedding(F, embed_dim)(ops.arange(F)) # (F, embed_dim) 
-    x = x + embed_x
-    y = y + embed_y
+    x = x + embed_x # (B, T, embed_dim)
+    y = y + embed_y # (B, F, embed_dim)
                 
     # decoder stack
     x2, y2 = x, y
@@ -139,14 +144,17 @@ def model2(input_shape, n_layers, embed_dim, n_heads, ff_dim):
                         
         x2 = TransformerCrossAttention(embed_dim, n_heads, ff_dim)(x1, y1)
         y2 = TransformerCrossAttention(embed_dim, n_heads, ff_dim)(y1, x1)
+        
+        x2 = layers.Dropout(0.2)(x2)
+        y2 = layers.Dropout(0.2)(y2)
 
-    # linear head
+    # linear heads
     x = layers.Dense(F)(x2) # (B, T, embed_dim) -> (B, T, F)
     y = layers.Dense(T)(y2) # (B, F, embed_dim) -> (B, F, T)
 
-    y = ops.transpose(y, axes=(0,2,1)) # -> (B, T, F)
+    x = x + ops.transpose(y, axes=(0,2,1))  # -> (B, T, F)
 
     # ouput projection
-    outputs = layers.Dense(F)(x+y)  # (B, F)
-        
+    outputs = layers.Dense(F)(x)    # (B, T, F) -> (B, F)
+                
     return Model(inputs, outputs)
